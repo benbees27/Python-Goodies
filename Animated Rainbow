@@ -1,0 +1,16 @@
+import pyfiglet
+import time
+from rich.console import Console
+from rich.text import Text
+
+console = Console()
+
+ascii_text = pyfiglet.figlet_format("WELCOME!")
+colors = ["red", "yellow", "green", "cyan", "blue", "magenta"]
+
+for i in range(10):  # Number of animation cycles
+    color = colors[i % len(colors)]
+    console.clear()  # Clears screen without flickering
+    styled_text = Text(ascii_text, style=color)
+    console.print(styled_text)
+    time.sleep(0.8)  # Adjust the speed of the animation

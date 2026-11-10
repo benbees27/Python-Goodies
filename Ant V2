@@ -1,0 +1,159 @@
+import pygame
+import sys
+
+# -----------------------------
+# SETTINGS
+# -----------------------------
+
+CELL_SIZE = 6
+GRID_WIDTH = 100
+GRID_HEIGHT = 100
+
+WINDOW_WIDTH = CELL_SIZE * GRID_WIDTH
+WINDOW_HEIGHT = CELL_SIZE * GRID_HEIGHT
+
+FPS = 180
+STEPS_PER_FRAME = 200
+
+
+# -----------------------------
+# COLORS
+# -----------------------------
+
+WHITE = (240, 240, 240)
+BLACK = (0, 0, 0)
+BOOST = (0, 255, 0)   # Light green = speed tile
+RED = (255, 0, 0)
+
+
+# -----------------------------
+# GRID
+# -----------------------------
+
+# 0 = white, 1 = black, 2 = boost-white
+grid = [[0 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+
+
+# -----------------------------
+# ANT
+# -----------------------------
+
+ant_x = GRID_WIDTH // 2
+ant_y = GRID_HEIGHT // 2
+direction = 0   # 0=up,1=right,2=down,3=left
+
+
+# -----------------------------
+# UPDATE
+# -----------------------------
+
+def step():
+
+    global ant_x, ant_y, direction
+
+    cell = grid[ant_y][ant_x]
+
+    # White
+    if cell == 0:
+        direction = (direction + 1) % 4
+        grid[ant_y][ant_x] = 1
+
+    # Black
+    elif cell == 1:
+        direction = (direction - 1) % 4
+        grid[ant_y][ant_x] = 2   # Become boost
+
+    # Boost
+    elif cell == 2:
+        direction = (direction + 1) % 4
+        grid[ant_y][ant_x] = 0
+
+
+    # Move once
+    move()
+
+    # If boost → move again
+    if grid[ant_y][ant_x] == 2:
+        move()
+
+
+def move():
+
+    global ant_x, ant_y
+
+    if direction == 0:
+        ant_y -= 1
+    elif direction == 1:
+        ant_x += 1
+    elif direction == 2:
+        ant_y += 1
+    elif direction == 3:
+        ant_x -= 1
+
+    ant_x %= GRID_WIDTH
+    ant_y %= GRID_HEIGHT
+
+
+# -----------------------------
+# PYGAME
+# -----------------------------
+
+pygame.init()
+
+screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+pygame.display.set_caption("Langton's Ant - Boost Variant")
+
+clock = pygame.time.Clock()
+
+
+# -----------------------------
+# LOOP
+# -----------------------------
+
+running = True
+while running:
+
+    clock.tick(FPS)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+
+    # Run multiple steps
+    for _ in range(STEPS_PER_FRAME):
+        step()
+
+
+    # Draw
+    screen.fill(WHITE)
+
+    for y in range(GRID_HEIGHT):
+        for x in range(GRID_WIDTH):
+
+            if grid[y][x] == 1:
+                pygame.draw.rect(
+                    screen, BLACK,
+                    (x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                )
+
+            elif grid[y][x] == 2:
+                pygame.draw.rect(
+                    screen, BOOST,
+                    (x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                )
+
+
+    # Ant
+    pygame.draw.rect(
+        screen,
+        RED,
+        (ant_x*CELL_SIZE, ant_y*CELL_SIZE, CELL_SIZE, CELL_SIZE)
+    )
+
+
+    pygame.display.flip()
+
+
+pygame.quit()
+sys.exit()

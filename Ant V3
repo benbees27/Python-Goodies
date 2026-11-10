@@ -1,0 +1,264 @@
+import pygame
+import sys
+import random
+
+# -----------------------------
+# SETTINGS
+# -----------------------------
+CELL_SIZE = 6
+GRID_W = 120
+GRID_H = 90
+WIDTH = GRID_W * CELL_SIZE
+HEIGHT = GRID_H * CELL_SIZE
+
+FPS = 30
+MAX_ANTS = 500
+
+WORKER_SPAWN_RATE = 5
+WARRIOR_SPAWN_RATE = 10
+
+COLONY_COLORS = [
+    (255, 0, 0),
+    (0, 0, 255),
+    (0, 255, 0),
+    (255, 255, 0),
+    (255, 0, 255)
+]
+
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+
+# -----------------------------
+# GRID
+# -----------------------------
+grid = [[None for _ in range(GRID_W)] for _ in range(GRID_H)]
+trail = [[None for _ in range(GRID_W)] for _ in range(GRID_H)]  # Paper.io trails
+
+# -----------------------------
+# ANT CLASS
+# -----------------------------
+class Ant:
+    def __init__(self, x, y, colony, ant_type="worker"):
+        self.x = x
+        self.y = y
+        self.colony = colony
+        self.type = ant_type
+
+    def neighbors(self):
+        return [((self.x + dx) % GRID_W, (self.y + dy) % GRID_H) for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]]
+
+    def move(self):
+        global ants, trail, grid
+
+        if self.type == "worker":
+            # Move on white tiles if possible
+            white_tiles = [(nx, ny) for nx, ny in self.neighbors() if grid[ny][nx] is None]
+            if white_tiles:
+                nx, ny = random.choice(white_tiles)
+            else:
+                # Otherwise move on own territory only
+                own_tiles = [(nx, ny) for nx, ny in self.neighbors() if grid[ny][nx] == self.colony]
+                if own_tiles:
+                    nx, ny = random.choice(own_tiles)
+                else:
+                    return  # boxed in, do nothing
+
+            self.x, self.y = nx, ny
+
+            # Leave trail only on white tiles
+            if grid[ny][nx] is None:
+                trail[ny][nx] = self.colony
+
+            # Fill territory if connected back to own territory
+            if grid[ny][nx] == self.colony:
+                self.fill_territory()
+
+        elif self.type == "warrior":
+            # Attack enemy tiles
+            enemies = [(nx, ny) for nx, ny in self.neighbors() if grid[ny][nx] not in (None, self.colony)]
+            if enemies:
+                nx, ny = random.choice(enemies)
+                # Kill enemy ants
+                for ant in ants[:]:
+                    if ant.x == nx and ant.y == ny and ant.colony != self.colony:
+                        ants.remove(ant)
+                # Kill enemy warriors on same tile
+                for ant in ants[:]:
+                    if ant.x == nx and ant.y == ny and ant.colony != self.colony and ant.type == "warrior":
+                        ants.remove(ant)
+                grid[ny][nx] = self.colony
+                self.x, self.y = nx, ny
+            else:
+                # Move on own territory if no enemies
+                own_tiles = [(nx, ny) for nx, ny in self.neighbors() if grid[ny][nx] == self.colony]
+                if own_tiles:
+                    self.x, self.y = random.choice(own_tiles)
+
+    def fill_territory(self):
+        """Flood-fill enclosed white areas, only fill white tiles."""
+        global trail, grid
+        visited = [[False for _ in range(GRID_W)] for _ in range(GRID_H)]
+        queue = []
+
+        # Start flood fill from the edges
+        for x in range(GRID_W):
+            for y in [0, GRID_H-1]:
+                queue.append((x, y))
+                visited[y][x] = True
+        for y in range(GRID_H):
+            for x in [0, GRID_W-1]:
+                queue.append((x, y))
+                visited[y][x] = True
+
+        while queue:
+            cx, cy = queue.pop(0)
+            for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]:
+                nx, ny = cx + dx, cy + dy
+                if 0 <= nx < GRID_W and 0 <= ny < GRID_H and not visited[ny][nx]:
+                    if trail[ny][nx] != self.colony:
+                        visited[ny][nx] = True
+                        queue.append((nx, ny))
+
+        # Fill any trail cells not visited
+        for y in range(GRID_H):
+            for x in range(GRID_W):
+                if trail[y][x] == self.colony and not visited[y][x]:
+                    grid[y][x] = self.colony
+                if trail[y][x] == self.colony:
+                    trail[y][x] = None
+
+# -----------------------------
+# QUEEN CLASS
+# -----------------------------
+class Queen:
+    def __init__(self, x, y, colony, worker_rate=WORKER_SPAWN_RATE, warrior_rate=WARRIOR_SPAWN_RATE):
+        self.x = x
+        self.y = y
+        self.colony = colony
+        self.alive = True
+        self.worker_counter = 0
+        self.warrior_counter = 0
+        self.worker_rate = worker_rate
+        self.warrior_rate = warrior_rate
+
+    def spawn_ants(self):
+        if not self.alive:
+            return []
+
+        self.worker_counter += 1
+        self.warrior_counter += 1
+        new_ants = []
+        neighbors = [((self.x + dx) % GRID_W, (self.y + dy) % GRID_H) for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]]
+        random.shuffle(neighbors)
+
+        # Worker spawn on empty tiles only
+        if self.worker_counter >= self.worker_rate:
+            self.worker_counter = 0
+            for nx, ny in neighbors:
+                if grid[ny][nx] is None and len(ants) < MAX_ANTS:
+                    worker = Ant(nx, ny, self.colony, "worker")
+                    new_ants.append(worker)
+                    trail[ny][nx] = self.colony
+                    break
+
+        # Warrior spawn on white or own territory
+        if self.warrior_counter >= self.warrior_rate:
+            self.warrior_counter = 0
+            for nx, ny in neighbors:
+                if grid[ny][nx] in (None, self.colony) and len(ants) < MAX_ANTS:
+                    warrior = Ant(nx, ny, self.colony, "warrior")
+                    new_ants.append(warrior)
+                    grid[ny][nx] = self.colony
+                    break
+
+        return new_ants
+
+    def check_capture(self):
+        neighbors = [((self.x + dx) % GRID_W, (self.y + dy) % GRID_H) for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]]
+        for nx, ny in neighbors:
+            if grid[ny][nx] in (None, self.colony):
+                return False
+        return True
+
+# -----------------------------
+# INITIAL SETUP
+# -----------------------------
+ants = []
+queens = []
+
+for c_id in range(5):
+    while True:
+        x = random.randint(0, GRID_W-1)
+        y = random.randint(0, GRID_H-1)
+        if grid[y][x] is None:
+            grid[y][x] = c_id
+            queens.append(Queen(x, y, c_id))
+            break
+
+# -----------------------------
+# PYGAME SETUP
+# -----------------------------
+pygame.init()
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Workers + Warriors + Paper.io Fill FIXED")
+clock = pygame.time.Clock()
+
+# -----------------------------
+# MAIN LOOP
+# -----------------------------
+running = True
+while running:
+    clock.tick(FPS)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    # Spawn ants
+    for queen in queens:
+        if queen.alive:
+            new_ants = queen.spawn_ants()
+            if new_ants:
+                ants.extend(new_ants)
+
+    # Move ants
+    for ant in ants[:]:
+        ant.move()
+
+    # Check queen capture
+    for queen in queens:
+        if queen.alive and queen.check_capture():
+            queen.alive = False
+            print(f"Queen of colony {queen.colony} captured!")
+
+    # DRAW GRID
+    for y in range(GRID_H):
+        for x in range(GRID_W):
+            col = grid[y][x]
+            if col is not None:
+                pygame.draw.rect(screen, COLONY_COLORS[col], (x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE))
+            else:
+                pygame.draw.rect(screen, WHITE, (x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE))
+
+    # DRAW WORKER TRAILS
+    for y in range(GRID_H):
+        for x in range(GRID_W):
+            if trail[y][x] is not None:
+                pygame.draw.rect(screen, COLONY_COLORS[trail[y][x]], (x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE))
+
+    # DRAW QUEENS
+    for queen in queens:
+        if queen.alive:
+            pygame.draw.rect(screen, BLACK, (queen.x*CELL_SIZE, queen.y*CELL_SIZE, CELL_SIZE, CELL_SIZE))
+            pygame.draw.rect(screen, WHITE, (queen.x*CELL_SIZE, queen.y*CELL_SIZE, CELL_SIZE, CELL_SIZE), 1)
+
+    # DRAW ANTS
+    for ant in ants:
+        if ant.type == "worker":
+            pygame.draw.rect(screen, BLACK, (ant.x*CELL_SIZE, ant.y*CELL_SIZE, CELL_SIZE, CELL_SIZE))
+        elif ant.type == "warrior":
+            pygame.draw.rect(screen, BLACK, (ant.x*CELL_SIZE, ant.y*CELL_SIZE, CELL_SIZE*2, CELL_SIZE*2))
+
+    pygame.display.flip()
+
+pygame.quit()
+sys.exit()

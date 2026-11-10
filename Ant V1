@@ -1,0 +1,150 @@
+import pygame
+import sys
+
+# -----------------------------
+# SETTINGS
+# -----------------------------
+
+CELL_SIZE = 5        # Size of each square in pixels
+GRID_WIDTH = 120     # Number of cells horizontally
+GRID_HEIGHT = 120    # Number of cells vertically
+
+WINDOW_WIDTH = CELL_SIZE * GRID_WIDTH
+WINDOW_HEIGHT = CELL_SIZE * GRID_HEIGHT
+
+FPS = 60            # Frames per second (speed of simulation)
+
+
+# -----------------------------
+# COLORS
+# -----------------------------
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)     # Color of the ant
+
+
+# -----------------------------
+# INITIALIZE PYGAME
+# -----------------------------
+
+pygame.init()
+screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+pygame.display.set_caption("Langton's Ant")
+
+clock = pygame.time.Clock()
+
+
+# -----------------------------
+# GRID SETUP
+# -----------------------------
+
+# Create a grid filled with 0 (white cells)
+# 0 = white, 1 = black
+grid = [[0 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+
+
+# -----------------------------
+# ANT SETUP
+# -----------------------------
+
+# Start ant in the middle
+ant_x = GRID_WIDTH // 2
+ant_y = GRID_HEIGHT // 2
+
+# Direction the ant is facing
+# 0 = up, 1 = right, 2 = down, 3 = left
+direction = 0
+
+
+# -----------------------------
+# MAIN LOOP
+# -----------------------------
+
+running = True
+while running:
+
+    # Control frame rate
+    clock.tick(FPS)
+
+    # Handle events (like closing window)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+
+    # -----------------------------
+    # LANGTON'S ANT RULES
+    # -----------------------------
+
+    current_cell = grid[ant_y][ant_x]
+
+    if current_cell == 0:
+        # On white: turn right
+        direction = (direction + 1) % 4
+        grid[ant_y][ant_x] = 1  # Flip to black
+
+    else:
+        # On black: turn left
+        direction = (direction - 1) % 4
+        grid[ant_y][ant_x] = 0  # Flip to white
+
+
+    # -----------------------------
+    # MOVE ANT FORWARD
+    # -----------------------------
+
+    if direction == 0:      # Up
+        ant_y -= 1
+    elif direction == 1:   # Right
+        ant_x += 1
+    elif direction == 2:   # Down
+        ant_y += 1
+    elif direction == 3:   # Left
+        ant_x -= 1
+
+
+    # Wrap around edges (so it doesn't leave screen)
+    ant_x %= GRID_WIDTH
+    ant_y %= GRID_HEIGHT
+
+
+    # -----------------------------
+    # DRAW EVERYTHING
+    # -----------------------------
+
+    screen.fill(WHITE)
+
+    # Draw grid
+    for y in range(GRID_HEIGHT):
+        for x in range(GRID_WIDTH):
+
+            if grid[y][x] == 1:
+                rect = pygame.Rect(
+                    x * CELL_SIZE,
+                    y * CELL_SIZE,
+                    CELL_SIZE,
+                    CELL_SIZE
+                )
+                pygame.draw.rect(screen, BLACK, rect)
+
+
+    # Draw ant
+    ant_rect = pygame.Rect(
+        ant_x * CELL_SIZE,
+        ant_y * CELL_SIZE,
+        CELL_SIZE,
+        CELL_SIZE
+    )
+
+    pygame.draw.rect(screen, RED, ant_rect)
+
+    pygame.display.flip()
+
+
+# -----------------------------
+# CLEAN UP
+# -----------------------------
+
+pygame.quit()
+sys.exit()

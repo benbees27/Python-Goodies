@@ -1,0 +1,7 @@
+import pyfiglet
+from colorama import Fore, Style
+
+text = input("Enter the text you want to convert: ")
+font = input("Choose a font (e.g., slant, block, bubble): ")
+ascii_art = pyfiglet.figlet_format(text, font=font)
+print(Fore.RED + ascii_art + Style.RESET_ALL)
